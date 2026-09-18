@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pharma-graphrag"
+version = "0.1.0"
+description = "GraphRAG evaluation project over pharma target/disease/drug/trial data"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pharma_graphrag"]

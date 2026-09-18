@@ -20,7 +20,6 @@ env/
 
 # Package managers / tooling
 .uv/
-uv.lock
 pip-wheel-metadata/
 
 # Testing / linting / type-checking caches
