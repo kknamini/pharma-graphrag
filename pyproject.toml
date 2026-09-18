@@ -8,8 +8,15 @@ version = "0.1.0"
 description = "GraphRAG evaluation project over pharma target/disease/drug/trial data"
 requires-python = ">=3.10"
 dependencies = [
+    "pandas>=2.3.3",
     "requests",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pharma_graphrag"]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+]
