@@ -8,6 +8,17 @@ from pharma_graphrag.config import DATA_RAW_DIR, DISEASES
 
 API_URL = "https://api.platform.opentargets.org/api/v4/graphql"
 
+# Open Targets' free-text search ranking is not stable: for "multiple sclerosis" it
+# sometimes ranks a sub-concept (EFO_0803536, "multiple sclerosis symptom measurement")
+# above the base disease term. Worse, the base "multiple sclerosis" entity itself
+# (MONDO_0005301) is not resolvable via disease(efoId:...) at all in the current API -
+# only MS subtypes are. We use relapsing-remitting MS (the most common subtype, ~85%
+# of patients at diagnosis) as the Open Targets-side proxy for "multiple sclerosis".
+# ClinicalTrials.gov matching still targets the broader "multiple sclerosis" string.
+DISEASE_ID_OVERRIDES = {
+    "multiple sclerosis": "MONDO_0005314",  # relapsing-remitting multiple sclerosis
+}
+
 SEARCH_QUERY = """
 query search($q: String!) {
   search(queryString: $q, entityNames: ["disease"]) {
@@ -21,6 +32,10 @@ query diseaseInfo($efoId: String!) {
   disease(efoId: $efoId) {
     id
     name
+    synonyms {
+      relation
+      terms
+    }
     associatedTargets(page: { size: 50, index: 0 }) {
       count
       rows {
@@ -41,9 +56,16 @@ query diseaseInfo($efoId: String!) {
 
 
 def resolve_efo_id(disease_name: str) -> str:
+    if disease_name in DISEASE_ID_OVERRIDES:
+        return DISEASE_ID_OVERRIDES[disease_name]
+
     resp = requests.post(API_URL, json={"query": SEARCH_QUERY, "variables": {"q": disease_name}})
     resp.raise_for_status()
     hits = resp.json()["data"]["search"]["hits"]
+
+    for hit in hits:
+        if hit["name"].lower() == disease_name.lower():
+            return hit["id"]
     return hits[0]["id"]
 
 
