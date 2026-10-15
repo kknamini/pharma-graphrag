@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "GraphRAG evaluation project over pharma target/disease/drug/trial data"
 requires-python = ">=3.10"
 dependencies = [
+    "httpx>=0.28.0",
     "pandas>=2.3.3",
     "protobuf>=7.36.2",
     "rapidfuzz>=3.14.5",
