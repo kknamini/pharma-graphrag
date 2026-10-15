@@ -11,22 +11,15 @@ data/raw/. Output: data/processed/er_labeling_sheet.csv
 import csv
 import json
 
-from pharma_graphrag.config import DATA_PROCESSED_DIR, DATA_RAW_DIR
-from pharma_graphrag.ingestion.entity_resolution import EntityResolver, load_disease_refs
-
-FIELDNAMES = [
-    "condition_raw",
-    "frequency",
-    "source_query_buckets",
-    "example_nct_id",
-    "example_brief_title",
-    "predicted_disease_id",
-    "predicted_disease_name",
-    "predicted_tier",
-    "predicted_score",
-    "gold_disease_id",
-    "gold_notes",
-]
+from pharma_graphrag.config import (
+    DATA_PROCESSED_DIR,
+    DATA_RAW_DIR,
+    ER_LABELING_SHEET_FIELDNAMES,
+)
+from pharma_graphrag.ingestion.entity_resolution import (
+    EntityResolver,
+    load_disease_refs,
+)
 
 
 def iter_trial_conditions():
@@ -38,7 +31,12 @@ def iter_trial_conditions():
             identification = protocol.get("identificationModule", {})
             conditions = protocol.get("conditionsModule", {}).get("conditions", [])
             for condition in conditions:
-                yield condition, bucket, identification.get("nctId", ""), identification.get("briefTitle", "")
+                yield (
+                    condition,
+                    bucket,
+                    identification.get("nctId", ""),
+                    identification.get("briefTitle", ""),
+                )
 
 
 def main():
@@ -49,7 +47,12 @@ def main():
     for condition, bucket, nct_id, brief_title in iter_trial_conditions():
         entry = unique_conditions.setdefault(
             condition,
-            {"frequency": 0, "buckets": set(), "example_nct_id": nct_id, "example_brief_title": brief_title},
+            {
+                "frequency": 0,
+                "buckets": set(),
+                "example_nct_id": nct_id,
+                "example_brief_title": brief_title,
+            },
         )
         entry["frequency"] += 1
         entry["buckets"].add(bucket)
@@ -67,7 +70,9 @@ def main():
                 "predicted_disease_id": result.disease_id or "",
                 "predicted_disease_name": result.disease_name or "",
                 "predicted_tier": result.tier,
-                "predicted_score": f"{result.score:.1f}" if result.score is not None else "",
+                "predicted_score": f"{result.score:.1f}"
+                if result.score is not None
+                else "",
                 "gold_disease_id": "",
                 "gold_notes": "",
             }
@@ -77,7 +82,7 @@ def main():
     DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     out_path = DATA_PROCESSED_DIR / "er_labeling_sheet.csv"
     with out_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=ER_LABELING_SHEET_FIELDNAMES)
         writer.writeheader()
         writer.writerows(rows)
 

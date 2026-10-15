@@ -26,15 +26,16 @@ from pathlib import Path
 from rapidfuzz import fuzz
 from rapidfuzz.distance import JaroWinkler
 
-from pharma_graphrag.config import DATA_RAW_DIR
-
-STRING_SIM_THRESHOLD = 88.0  # 0-100 scale
-EMBEDDING_SIM_THRESHOLD = 0.60  # cosine similarity, 0-1 scale
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+from pharma_graphrag.config import (
+    DATA_RAW_DIR,
+    EMBEDDING_MODEL_NAME,
+    EMBEDDING_SIM_THRESHOLD,
+    EXACT_SYNONYM_RELATIONS,
+    STRING_SIM_THRESHOLD,
+)
 
 # Only "exact" synonyms are treated as true equivalence for tier 1; "related" /
 # "narrow" / "broad" synonyms are not reliably interchangeable with the disease itself.
-EXACT_SYNONYM_RELATIONS = {"hasExactSynonym"}
 
 
 @dataclass
@@ -96,27 +97,47 @@ class EntityResolver:
         self._candidate_refs: list[DiseaseRef] = []
         self._candidate_embeddings = None
 
-    def resolve(self, condition_raw: str, use_embedding_fallback: bool = True) -> ResolutionResult:
+    def resolve(
+        self, condition_raw: str, use_embedding_fallback: bool = True
+    ) -> ResolutionResult:
         normalized = normalize(condition_raw)
 
         exact_ref = self._exact_lookup.get(normalized)
         if exact_ref is not None:
-            return ResolutionResult(condition_raw, exact_ref.disease_id, exact_ref.name, "exact_synonym", 100.0)
+            return ResolutionResult(
+                condition_raw,
+                exact_ref.disease_id,
+                exact_ref.name,
+                "exact_synonym",
+                100.0,
+            )
 
         string_ref, string_score = self._best_string_match(normalized)
         if string_ref is not None and string_score >= STRING_SIM_THRESHOLD:
-            return ResolutionResult(condition_raw, string_ref.disease_id, string_ref.name, "string_sim", string_score)
+            return ResolutionResult(
+                condition_raw,
+                string_ref.disease_id,
+                string_ref.name,
+                "string_sim",
+                string_score,
+            )
 
         if use_embedding_fallback:
             embed_ref, embed_score = self._best_embedding_match(condition_raw)
             if embed_ref is not None and embed_score >= EMBEDDING_SIM_THRESHOLD:
                 return ResolutionResult(
-                    condition_raw, embed_ref.disease_id, embed_ref.name, "embedding", embed_score
+                    condition_raw,
+                    embed_ref.disease_id,
+                    embed_ref.name,
+                    "embedding",
+                    embed_score,
                 )
 
         return ResolutionResult(condition_raw, None, None, "unresolved", None)
 
-    def _best_string_match(self, normalized_condition: str) -> tuple[DiseaseRef | None, float]:
+    def _best_string_match(
+        self, normalized_condition: str
+    ) -> tuple[DiseaseRef | None, float]:
         best_ref, best_score = None, 0.0
         for ref in self.disease_refs:
             for candidate in [ref.name, *ref.exact_synonyms]:
@@ -136,11 +157,17 @@ class EntityResolver:
             for text in [ref.name, *ref.exact_synonyms]:
                 self._candidate_refs.append(ref)
                 candidate_texts.append(text)
-        self._candidate_embeddings = self._embedding_model.encode(candidate_texts, normalize_embeddings=True)
+        self._candidate_embeddings = self._embedding_model.encode(
+            candidate_texts, normalize_embeddings=True
+        )
 
-    def _best_embedding_match(self, condition_raw: str) -> tuple[DiseaseRef | None, float]:
+    def _best_embedding_match(
+        self, condition_raw: str
+    ) -> tuple[DiseaseRef | None, float]:
         self._ensure_embeddings()
-        condition_embedding = self._embedding_model.encode(condition_raw, normalize_embeddings=True)
+        condition_embedding = self._embedding_model.encode(
+            condition_raw, normalize_embeddings=True
+        )
         similarities = self._candidate_embeddings @ condition_embedding
         best_idx = int(similarities.argmax())
         return self._candidate_refs[best_idx], float(similarities[best_idx])
