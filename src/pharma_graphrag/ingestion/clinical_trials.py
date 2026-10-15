@@ -5,10 +5,12 @@ import json
 
 import httpx
 
-from pharma_graphrag.config import DATA_RAW_DIR, DISEASES
-
-API_URL = "https://clinicaltrials.gov/api/v2/studies"
-MAX_CONCURRENT_REQUESTS = 5
+from pharma_graphrag.config import (
+    CLINICAL_TRIALS_API_URL,
+    DATA_RAW_DIR,
+    DISEASES,
+    MAX_CONCURRENT_REQUESTS,
+)
 
 
 async def fetch_trials(
@@ -16,7 +18,7 @@ async def fetch_trials(
 ) -> tuple[str, dict]:
     async with semaphore:
         response = await client.get(
-            API_URL, params={"query.cond": condition, "pageSize": 100}
+            CLINICAL_TRIALS_API_URL, params={"query.cond": condition, "pageSize": 100}
         )
         response.raise_for_status()
         return condition, response.json()

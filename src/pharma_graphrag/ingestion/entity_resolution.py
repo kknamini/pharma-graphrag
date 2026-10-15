@@ -41,7 +41,6 @@ DEFAULT_EMBEDDING_MODEL_NAME = "minilm"
 
 # Only "exact" synonyms are treated as true equivalence for tier 1; "related" /
 # "narrow" / "broad" synonyms are not reliably interchangeable with the disease itself.
-EXACT_SYNONYM_RELATIONS = {"hasExactSynonym"}
 
 
 @dataclass
