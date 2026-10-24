@@ -9,9 +9,12 @@ description = "GraphRAG evaluation project over pharma target/disease/drug/trial
 requires-python = ">=3.10"
 dependencies = [
     "pandas>=2.3.3",
+    "protobuf>=7.36.2",
     "rapidfuzz>=3.14.5",
     "requests",
     "sentence-transformers>=6.1.0",
+    "sentencepiece>=0.2.2",
+    "tiktoken>=0.14.0",
 ]
 
 [tool.hatch.build.targets.wheel]
