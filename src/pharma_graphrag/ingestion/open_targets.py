@@ -19,6 +19,18 @@ DISEASE_ID_OVERRIDES = {
     "multiple sclerosis": "MONDO_0005314",  # relapsing-remitting multiple sclerosis
 }
 
+# RRMS's own EFO-curated synonym list correctly excludes generic "multiple sclerosis"
+# phrasing (it's not a true synonym of RRMS specifically - RRMS is a subtype, not the
+# whole disease). These sibling clinical-course subtypes aren't separate disease nodes
+# in our graph; they're fetched purely to harvest their own curated synonyms (e.g.
+# SPMS's own "SPMS" abbreviation) as additional pseudo-synonyms for the MS proxy node.
+# See README "Special-case handling: multiple sclerosis" for the full rationale.
+MS_SIBLING_SUBTYPE_IDS = {
+    "MONDO_0000451": "primary progressive multiple sclerosis",
+    "MONDO_0000450": "secondary progressive multiple sclerosis",
+    "MONDO_0005284": "chronic progressive multiple sclerosis (legacy classification)",
+}
+
 SEARCH_QUERY = """
 query search($q: String!) {
   search(queryString: $q, entityNames: ["disease"]) {
@@ -75,6 +87,16 @@ def fetch_disease_data(efo_id: str) -> dict:
     return resp.json()
 
 
+def fetch_ms_sibling_synonyms():
+    DATA_RAW_DIR.mkdir(parents=True, exist_ok=True)
+    for sibling_id, label in MS_SIBLING_SUBTYPE_IDS.items():
+        data = fetch_disease_data(sibling_id)
+
+        out_path = DATA_RAW_DIR / f"ms_sibling_{sibling_id}.json"
+        out_path.write_text(json.dumps(data, indent=2))
+        print(f"Saved MS sibling {label} ({sibling_id}) -> {out_path}")
+
+
 def main():
     DATA_RAW_DIR.mkdir(parents=True, exist_ok=True)
     for disease_name in DISEASES:
@@ -84,6 +106,8 @@ def main():
         out_path = DATA_RAW_DIR / f"open_targets_{efo_id}.json"
         out_path.write_text(json.dumps(data, indent=2))
         print(f"Saved {disease_name} ({efo_id}) -> {out_path}")
+
+    fetch_ms_sibling_synonyms()
 
 
 if __name__ == "__main__":

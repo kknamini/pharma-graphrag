@@ -75,12 +75,68 @@ UMLS) instead of a generic one.
   sclerosis" by name returned a sub-concept (`EFO_0803536`, "multiple sclerosis symptom
   measurement") above the actual disease. `resolve_efo_id()` now prefers an exact
   case-insensitive name match among search hits over blindly taking the top result.
-- **The base "multiple sclerosis" entity is unresolvable in Open Targets' current
-  platform release** — `disease(efoId: "MONDO_0005301")` returns null; only MS subtypes
-  resolve. Relapsing-remitting MS (`MONDO_0005314`, the most common subtype at
-  diagnosis) is used as the Open Targets-side proxy for target/drug data. ClinicalTrials.gov
-  matching still targets the broader "multiple sclerosis" string via the string-similarity
-  tier. Pinned in `DISEASE_ID_OVERRIDES` in `open_targets.py`.
+
+### Special-case handling: multiple sclerosis
+
+Multiple sclerosis gets materially different treatment from the other 4 diseases in this
+project, entirely because **it has no resolvable base disease node in Open Targets** —
+confirmed three independent ways, not just one:
+
+1. `disease(efoId: "MONDO_0005301")` (the standard Mondo ontology ID for "multiple
+   sclerosis") returns `null` via direct query.
+2. Free-text search for "multiple sclerosis" never surfaces the base disease term, even
+   in the top 50 results — only subtypes (relapsing-remitting, primary progressive,
+   secondary progressive, chronic progressive) resolve, alongside one irrelevant
+   sub-concept (`EFO_0803536`, "multiple sclerosis symptom measurement").
+3. The subtypes aren't even linked back to it structurally. Relapsing-remitting MS's own
+   `parents` field in Open Targets' graph returns that same irrelevant sub-concept, not
+   the real disease — and its full `ancestors` chain doesn't contain `MONDO_0005301`
+   anywhere. Open Targets' internal ontology graph doesn't connect RRMS to "multiple
+   sclerosis" at all.
+
+This is a genuine data gap, not something more fetching could fix — every avenue for
+pulling it from Open Targets (direct query, search, synonym relations, parent/ancestor
+traversal) was checked and came back empty. Three deliberate workarounds compensate:
+
+- **The RRMS proxy.** Relapsing-remitting multiple sclerosis (`MONDO_0005314`) — the most
+  common subtype, ~85% of patients at diagnosis — stands in for "multiple sclerosis" on
+  the Open Targets side of the graph (target/drug evidence). Pinned in
+  `DISEASE_ID_OVERRIDES` in `open_targets.py`. This is a real tradeoff, not a free fix:
+  the node's target/drug evidence is genuinely RRMS-specific, not MS-general.
+- **Manual synonym addition.** RRMS's own EFO-curated synonym list correctly excludes
+  generic "multiple sclerosis" phrasing — that's accurate curation of a narrower disease,
+  not a data bug, since "multiple sclerosis" genuinely isn't an exact synonym of RRMS
+  specifically. `entity_resolution.py` manually adds `"multiple sclerosis"` and `"MS"` as
+  pseudo-synonyms for this one node (`MS_PROXY_MANUAL_SYNONYMS`), clearly marked as an
+  explicit exception rather than ontology-sourced data.
+- **Sibling subtype synonym pull.** Three MS clinical-course subtypes that *are*
+  independently resolvable — primary progressive (`MONDO_0000451`), secondary progressive
+  (`MONDO_0000450`), and the legacy "chronic progressive" classification
+  (`MONDO_0005284`) — are fetched by `open_targets.fetch_ms_sibling_synonyms()` purely to
+  harvest their own curated `hasExactSynonym` lists (e.g. SPMS's own `"SPMS"`
+  abbreviation). They are **not** separate disease nodes in this project's graph; only
+  their synonym terms get folded into the RRMS proxy node, by
+  `_augment_ms_proxy_synonyms()` in `entity_resolution.py`.
+
+**What counts as in-scope for the MS node, as a result:** any clinical-course subtype of
+multiple sclerosis — RRMS, SPMS, PPMS, chronic progressive / legacy phrasing — resolves to
+this one node, since they're the same underlying disease differing only in course (the
+same "subtype of the same disease → same node" rule used elsewhere, e.g. anatomical
+variants of psoriasis or Crohn's). What stays out of scope: diseases that merely share a
+word with "sclerosis" but aren't MS — e.g. primary lateral sclerosis, systemic sclerosis
+(scleroderma) — which turned out to be a real, measured side effect of this fix (below).
+
+**Measured impact:** before this fix, 3 real MS trials were missed entirely (false
+negatives) because their condition strings — `"Simvastatin Multiple Sclerosis"`,
+`"Spasticity in Participants With Multiple Sclerosis"`, `"Pediatric-Onset Multiple
+Sclerosis (POMS)"` — didn't share enough tokens with RRMS's own narrow synonym list to
+clear the string-similarity threshold. After: recall against the hand-labeled gold set
+went from 0.967 to a perfect 1.000 (FN: 3 → 0). The cost: 2 new false positives
+(`"Primary Lateral Sclerosis"`, `"Systemic Sclerosis"`) now cross the embedding tier's
+threshold, since the larger "sclerosis"-dense synonym pool shifted its similarity scores
+for lexically-adjacent-but-different diseases. This is an expected, already-scoped
+tradeoff — it's absorbed into the ongoing embedding-tier threshold/model tuning work
+below, not a new problem to chase separately.
 
 ## Evaluating entity resolution without ground-truth labels
 

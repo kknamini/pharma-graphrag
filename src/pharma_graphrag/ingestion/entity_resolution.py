@@ -43,6 +43,16 @@ DEFAULT_EMBEDDING_MODEL_NAME = "minilm"
 # "narrow" / "broad" synonyms are not reliably interchangeable with the disease itself.
 EXACT_SYNONYM_RELATIONS = {"hasExactSynonym"}
 
+# Multiple sclerosis has no resolvable base disease node in Open Targets (confirmed via
+# direct query, broad search, and parent/ancestor graph traversal - see README "Special-
+# case handling: multiple sclerosis"). Relapsing-remitting MS stands in as the proxy
+# node, which means its own EFO-curated synonym list is RRMS-specific and correctly
+# excludes generic "multiple sclerosis" phrasing - that's not a data bug, it's accurate
+# curation of a narrower disease than what we're using the node to represent. These are
+# therefore manually-added exceptions, not ontology-sourced data, to close that gap.
+MS_PROXY_DISEASE_ID = "MONDO_0005314"
+MS_PROXY_MANUAL_SYNONYMS = ["multiple sclerosis", "MS"]
+
 
 @dataclass
 class DiseaseRef:
@@ -91,7 +101,31 @@ def load_disease_refs(raw_dir: Path = DATA_RAW_DIR) -> list[DiseaseRef]:
             for term in group["terms"]
         ]
         refs.append(DiseaseRef(disease["id"], disease["name"], exact_terms))
+
+    _augment_ms_proxy_synonyms(refs, raw_dir)
     return refs
+
+
+def _augment_ms_proxy_synonyms(refs: list[DiseaseRef], raw_dir: Path) -> None:
+    """Fold the manual MS synonyms and the MS sibling subtypes' own curated synonyms
+    into the RRMS proxy node. The siblings (data/raw/ms_sibling_*.json, fetched by
+    open_targets.fetch_ms_sibling_synonyms) are not separate disease nodes here - only
+    their synonym lists are used, as pseudo-synonyms for the single MS proxy node.
+    """
+    ms_ref = next((ref for ref in refs if ref.disease_id == MS_PROXY_DISEASE_ID), None)
+    if ms_ref is None:
+        return
+
+    ms_ref.exact_synonyms.extend(MS_PROXY_MANUAL_SYNONYMS)
+
+    for path in sorted(raw_dir.glob("ms_sibling_*.json")):
+        sibling = json.loads(path.read_text(encoding="utf-8"))["data"]["disease"]
+        if sibling is None:
+            continue
+        ms_ref.exact_synonyms.append(sibling["name"])
+        for group in sibling.get("synonyms") or []:
+            if group["relation"] in EXACT_SYNONYM_RELATIONS:
+                ms_ref.exact_synonyms.extend(group["terms"])
 
 
 def _string_similarity(a: str, b: str) -> float:
