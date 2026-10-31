@@ -5,10 +5,15 @@ import json
 
 import httpx
 
-from pharma_graphrag.config import DATA_RAW_DIR, DISEASES
-
-API_URL = "https://api.platform.opentargets.org/api/v4/graphql"
-MAX_CONCURRENT_REQUESTS = 5
+from pharma_graphrag.config import (
+    DATA_RAW_DIR,
+    DISEASE_ID_OVERRIDES,
+    DISEASES,
+    MAX_CONCURRENT_REQUESTS,
+    OPEN_TARGETS_API_URL,
+    OPEN_TARGETS_DISEASE_QUERY,
+    OPEN_TARGETS_SEARCH_QUERY,
+)
 
 # Open Targets' free-text search ranking is not stable: for "multiple sclerosis" it
 # sometimes ranks a sub-concept (EFO_0803536, "multiple sclerosis symptom measurement")
@@ -77,7 +82,8 @@ async def resolve_efo_id(
 
     async with semaphore:
         response = await client.post(
-            API_URL, json={"query": SEARCH_QUERY, "variables": {"q": disease_name}}
+            OPEN_TARGETS_API_URL,
+            json={"query": OPEN_TARGETS_SEARCH_QUERY, "variables": {"q": disease_name}},
         )
         response.raise_for_status()
         hits = response.json()["data"]["search"]["hits"]
@@ -93,7 +99,8 @@ async def fetch_disease_data(
 ) -> dict:
     async with semaphore:
         response = await client.post(
-            API_URL, json={"query": DISEASE_QUERY, "variables": {"efoId": efo_id}}
+            OPEN_TARGETS_API_URL,
+            json={"query": OPEN_TARGETS_DISEASE_QUERY, "variables": {"efoId": efo_id}},
         )
         response.raise_for_status()
         return response.json()
