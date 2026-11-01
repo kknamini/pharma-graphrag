@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 
 from pharma_graphrag.config import PROJECT_ROOT
 from pharma_graphrag.evaluation.entity_resolution_eval import evaluate_results, load_gold_rows
-from pharma_graphrag.ingestion.embedding_models import EMBEDDING_MODELS, load_embedding_model
+from pharma_graphrag.ingestion.embedding_models import EMBEDDING_MODEL_STRATEGIES, load_embedding_model
 from pharma_graphrag.ingestion.entity_resolution import (
     CandidateEmbeddingIndex,
     ConditionScores,
@@ -35,7 +35,7 @@ RESULTS_DIR = PROJECT_ROOT / "results"
 
 STRING_SIM_THRESHOLDS = [75, 80, 85, 90, 95]
 EMBEDDING_SIM_THRESHOLDS = [0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85]
-EMBEDDING_MODEL_NAMES = list(EMBEDDING_MODELS.keys())
+EMBEDDING_MODEL_IDS = list(EMBEDDING_MODEL_STRATEGIES.keys())
 
 TIER_FIELDNAMES = ["exact_synonym", "string_sim", "embedding"]
 FIELDNAMES = [
@@ -67,9 +67,9 @@ def main():
     base_scores = {c: score_condition(c, refs) for c in conditions}
 
     rows_out = []
-    for model_name in EMBEDDING_MODEL_NAMES:
-        print(f"Encoding with {model_name}...")
-        model = load_embedding_model(model_name)
+    for model_id in EMBEDDING_MODEL_IDS:
+        print(f"Encoding with {model_id}...")
+        model = load_embedding_model(model_id)
         index = CandidateEmbeddingIndex(model, refs)
         embedding_matches = dict(zip(conditions, index.best_match_batch(conditions)))
 
@@ -93,7 +93,7 @@ def main():
             precision, recall, f1 = metrics.precision_recall_f1()
 
             row = {
-                "embedding_model": model_name,
+                "embedding_model": model_id,
                 "string_sim_threshold": string_thresh,
                 "embedding_sim_threshold": embedding_thresh,
                 "overall_precision": round_or_blank(precision),

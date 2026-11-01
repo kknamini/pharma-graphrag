@@ -37,7 +37,7 @@ from pharma_graphrag.ingestion.embedding_models import EmbeddingModel, load_embe
 
 DEFAULT_STRING_SIM_THRESHOLD = 88.0  # 0-100 scale
 DEFAULT_EMBEDDING_SIM_THRESHOLD = 0.60  # cosine similarity, 0-1 scale
-DEFAULT_EMBEDDING_MODEL_NAME = "minilm"
+DEFAULT_EMBEDDING_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 
 # Only "exact" synonyms (EXACT_SYNONYM_RELATIONS, in config.py) are treated as true
 # equivalence for tier 1; "related" / "narrow" / "broad" synonyms are not reliably
@@ -236,17 +236,17 @@ class EntityResolver:
         disease_refs: list[DiseaseRef],
         string_sim_threshold: float = DEFAULT_STRING_SIM_THRESHOLD,
         embedding_sim_threshold: float = DEFAULT_EMBEDDING_SIM_THRESHOLD,
-        embedding_model_name: str = DEFAULT_EMBEDDING_MODEL_NAME,
+        embedding_model_id: str = DEFAULT_EMBEDDING_MODEL_ID,
     ):
         self.disease_refs = disease_refs
         self.string_sim_threshold = string_sim_threshold
         self.embedding_sim_threshold = embedding_sim_threshold
-        self.embedding_model_name = embedding_model_name
+        self.embedding_model_id = embedding_model_id
         self._embedding_index: CandidateEmbeddingIndex | None = None
 
     def _ensure_embedding_index(self) -> CandidateEmbeddingIndex:
         if self._embedding_index is None:
-            model = load_embedding_model(self.embedding_model_name)
+            model = load_embedding_model(self.embedding_model_id)
             self._embedding_index = CandidateEmbeddingIndex(model, self.disease_refs)
         return self._embedding_index
 
