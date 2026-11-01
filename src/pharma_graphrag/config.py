@@ -19,9 +19,16 @@ OPEN_TARGETS_API_URL = "https://api.platform.opentargets.org/api/v4/graphql"
 CLINICAL_TRIALS_API_URL = "https://clinicaltrials.gov/api/v2/studies"
 MAX_CONCURRENT_REQUESTS = 5
 
-# Disease ID overrides for specific diseases
+# Open Targets' free-text search ranking is not stable: for "multiple sclerosis" it
+# sometimes ranks a sub-concept (EFO_0803536, "multiple sclerosis symptom measurement")
+# above the base disease term. Worse, the base "multiple sclerosis" entity itself
+# (MONDO_0005301) is not resolvable via disease(efoId:...) at all in the current API -
+# only MS subtypes are. We use relapsing-remitting MS (the most common subtype, ~85%
+# of patients at diagnosis) as the Open Targets-side proxy for "multiple sclerosis".
+# ClinicalTrials.gov matching still targets the broader "multiple sclerosis" string.
+# See README "Special-case handling: multiple sclerosis" for the full rationale.
 DISEASE_ID_OVERRIDES = {
-    "multiple sclerosis": "MONDO_0005314",
+    "multiple sclerosis": "MONDO_0005314",  # relapsing-remitting multiple sclerosis
 }
 
 # Open Targets GraphQL queries

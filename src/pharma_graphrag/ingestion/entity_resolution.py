@@ -32,15 +32,16 @@ from pathlib import Path
 from rapidfuzz import fuzz
 from rapidfuzz.distance import JaroWinkler
 
-from pharma_graphrag.config import DATA_RAW_DIR
+from pharma_graphrag.config import DATA_RAW_DIR, EXACT_SYNONYM_RELATIONS
 from pharma_graphrag.ingestion.embedding_models import EmbeddingModel, load_embedding_model
 
 DEFAULT_STRING_SIM_THRESHOLD = 88.0  # 0-100 scale
 DEFAULT_EMBEDDING_SIM_THRESHOLD = 0.60  # cosine similarity, 0-1 scale
 DEFAULT_EMBEDDING_MODEL_NAME = "minilm"
 
-# Only "exact" synonyms are treated as true equivalence for tier 1; "related" /
-# "narrow" / "broad" synonyms are not reliably interchangeable with the disease itself.
+# Only "exact" synonyms (EXACT_SYNONYM_RELATIONS, in config.py) are treated as true
+# equivalence for tier 1; "related" / "narrow" / "broad" synonyms are not reliably
+# interchangeable with the disease itself.
 
 # Multiple sclerosis has no resolvable base disease node in Open Targets (confirmed via
 # direct query, broad search, and parent/ancestor graph traversal - see README "Special-

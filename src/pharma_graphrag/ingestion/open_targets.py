@@ -15,17 +15,6 @@ from pharma_graphrag.config import (
     OPEN_TARGETS_SEARCH_QUERY,
 )
 
-# Open Targets' free-text search ranking is not stable: for "multiple sclerosis" it
-# sometimes ranks a sub-concept (EFO_0803536, "multiple sclerosis symptom measurement")
-# above the base disease term. Worse, the base "multiple sclerosis" entity itself
-# (MONDO_0005301) is not resolvable via disease(efoId:...) at all in the current API -
-# only MS subtypes are. We use relapsing-remitting MS (the most common subtype, ~85%
-# of patients at diagnosis) as the Open Targets-side proxy for "multiple sclerosis".
-# ClinicalTrials.gov matching still targets the broader "multiple sclerosis" string.
-DISEASE_ID_OVERRIDES = {
-    "multiple sclerosis": "MONDO_0005314",  # relapsing-remitting multiple sclerosis
-}
-
 # RRMS's own EFO-curated synonym list correctly excludes generic "multiple sclerosis"
 # phrasing (it's not a true synonym of RRMS specifically - RRMS is a subtype, not the
 # whole disease). These sibling clinical-course subtypes aren't separate disease nodes
@@ -37,41 +26,6 @@ MS_SIBLING_SUBTYPE_IDS = {
     "MONDO_0000450": "secondary progressive multiple sclerosis",
     "MONDO_0005284": "chronic progressive multiple sclerosis (legacy classification)",
 }
-
-SEARCH_QUERY = """
-query search($q: String!) {
-  search(queryString: $q, entityNames: ["disease"]) {
-    hits { id name entity }
-  }
-}
-"""
-
-DISEASE_QUERY = """
-query diseaseInfo($efoId: String!) {
-  disease(efoId: $efoId) {
-    id
-    name
-    synonyms {
-      relation
-      terms
-    }
-    associatedTargets(page: { size: 50, index: 0 }) {
-      count
-      rows {
-        score
-        target { id approvedSymbol }
-      }
-    }
-    drugAndClinicalCandidates {
-      count
-      rows {
-        maxClinicalStage
-        drug { id name drugType maximumClinicalStage }
-      }
-    }
-  }
-}
-"""
 
 
 async def resolve_efo_id(
@@ -106,22 +60,19 @@ async def fetch_disease_data(
         return response.json()
 
 
-def fetch_ms_sibling_synonyms():
-    DATA_RAW_DIR.mkdir(parents=True, exist_ok=True)
-    for sibling_id, label in MS_SIBLING_SUBTYPE_IDS.items():
-        data = fetch_disease_data(sibling_id)
-
-        out_path = DATA_RAW_DIR / f"ms_sibling_{sibling_id}.json"
-        out_path.write_text(json.dumps(data, indent=2))
-        print(f"Saved MS sibling {label} ({sibling_id}) -> {out_path}")
-
-
 async def fetch_disease(
     disease_name: str, client: httpx.AsyncClient, semaphore: asyncio.Semaphore
 ) -> tuple[str, str, dict]:
     efo_id = await resolve_efo_id(disease_name, client, semaphore)
     data = await fetch_disease_data(efo_id, client, semaphore)
     return disease_name, efo_id, data
+
+
+async def fetch_ms_sibling(
+    sibling_id: str, client: httpx.AsyncClient, semaphore: asyncio.Semaphore
+) -> tuple[str, dict]:
+    data = await fetch_disease_data(sibling_id, client, semaphore)
+    return sibling_id, data
 
 
 async def main():
@@ -135,13 +86,23 @@ async def main():
                 for disease_name in DISEASES
             )
         )
+        sibling_results = await asyncio.gather(
+            *(
+                fetch_ms_sibling(sibling_id, client, semaphore)
+                for sibling_id in MS_SIBLING_SUBTYPE_IDS
+            )
+        )
 
     for disease_name, efo_id, data in results:
         out_path = DATA_RAW_DIR / f"open_targets_{efo_id}.json"
         out_path.write_text(json.dumps(data, indent=2))
         print(f"Saved {disease_name} ({efo_id}) -> {out_path}")
 
-    fetch_ms_sibling_synonyms()
+    for sibling_id, data in sibling_results:
+        label = MS_SIBLING_SUBTYPE_IDS[sibling_id]
+        out_path = DATA_RAW_DIR / f"ms_sibling_{sibling_id}.json"
+        out_path.write_text(json.dumps(data, indent=2))
+        print(f"Saved MS sibling {label} ({sibling_id}) -> {out_path}")
 
 
 if __name__ == "__main__":
